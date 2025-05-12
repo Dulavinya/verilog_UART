@@ -1,0 +1,67 @@
+`timescale 1ns/1ps
+
+module tb_uart_rx;
+
+    reg clk = 0;
+    reg rst = 1;
+    reg rx = 1; // idle state
+    wire [7:0] rx_data;
+    wire rx_done;
+
+    // Clock generation (50 MHz)
+    always #10 clk = ~clk;
+
+    // Instantiate UART Receiver
+    uart_rx #(
+        .CLK_FREQ(50000000),
+        .BAUD_RATE(9600)
+    ) rx_inst (
+        .clk(clk),
+        .rst(rst),
+        .rx(rx),
+        .rx_data(rx_data),
+        .rx_done(rx_done)
+    );
+
+    // Bit time based on baud rate
+    integer i;
+    real bit_time = 1_000_000_000.0 / 9600; // in ns
+
+    task send_byte(input [7:0] data);
+        begin
+            // Start bit
+            rx = 0;
+            #(bit_time);
+
+            // Data bits (LSB first)
+            for (i = 0; i < 8; i = i + 1) begin
+                rx = data[i];
+                #(bit_time);
+            end
+
+            // Stop bit
+            rx = 1;
+            #(bit_time);
+        end
+    endtask
+
+    initial begin
+        $display("UART RX Testbench");
+        $dumpfile("uart_rx_tb.vcd");
+        $dumpvars(0, tb_uart_rx);
+
+        #100;
+        rst = 0;
+        #100;
+
+        send_byte(8'h5A);  // Send 0x5A = 01011010
+        #10000;
+
+        if (rx_data == 8'h5A)
+            $display("Test PASSED ✅");
+        else
+            $display("Test FAILED ❌");
+
+        $finish;
+    end
+endmodule
